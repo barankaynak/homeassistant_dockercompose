@@ -1,0 +1,150 @@
+version: "3.7"
+
+services:
+  homeassistant:
+    image: "homeassistant/home-assistant:latest"
+    hostname: homeassistant
+    restart: always
+    privileged: true
+    volumes:
+      - "./volumes/home-assistant:/config"
+      - "/etc/localtime:/etc/localtime:ro"
+    depends_on:
+      - mqtt
+      - postgredb
+      - influxdb
+    ports:
+      - "8123:8123"
+    networks:
+      hass_net:
+        aliases:
+          - homeassistant
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8123"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+  mqtt:
+    build: ./mosquitto-docker
+    container_name: eclipse-mosquitto
+    hostname: mqtt
+    restart: always
+    image: eclipse-mosquitto
+    volumes:
+      - ./volumes/mosquitto/config:/mosquitto/config:ro
+      - ./volumes/mosquitto/log:/mosquitto/log
+      - ./volumes/mosquitto/data:/mosquitto/data
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "1883:1883"
+    env_file:
+      - ./config/mosquitto.env
+    networks:
+      hass_net:
+        aliases:
+          - mqtt
+  postgredb:
+    container_name: postgredb
+    restart: unless-stopped
+    image: postgres:latest
+    volumes:
+      - "postgresql_data:/var/lib/postgresql/data"
+      - "/etc/localtime:/etc/localtime:ro"
+    env_file:
+      - ./config/postgres.env
+    ports:
+      - "5432:5432"
+    networks:
+      hass_net:
+        aliases:
+          - postredb
+#  simpleftp:
+#    image: "mauler/simple-ftp-server:latest"
+#    hostname: hassftp
+#    restart: unless-stopped
+#    #    network_mode: host
+#    networks:
+#      hass_net:
+#        aliases:
+#          - simpleftp
+#    env_file:
+#      - ./config/simpleftp.env
+#    volumes:
+#      - "homeassistant_data:/home/ftp/homeassistant"
+#  tasmoadmin:
+#    image: "raymondmm/tasmoadmin:latest"
+#    restart: unless-stopped
+#    hostname: tasmoadmin
+#    volumes:
+#      - "tasmota_data:/data"
+#    ports:
+#      - "5555:80"
+#    networks:
+#      hass_net:
+#        aliases:
+#          - tasmoadmin
+  nodered:
+    image: "nodered/node-red-docker:v8"
+    restart: unless-stopped
+    hostname: nodered
+    depends_on:
+      - homeassistant
+    volumes:
+      - "./volumes/nodered_data:/data"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+    ports:
+      - "1880:1880"
+    networks:
+      hass_net:
+        aliases:
+          - nodered
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:1880"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  influxdb:
+    container_name: influxdb
+    restart: unless-stopped
+    image: influxdb
+    hostname: influxdb
+    volumes:
+      - "influxdb_data:/etc/influxdb"
+    environment:
+      - INFLUX_GRAPHITE_ENABLED='true'
+      - INFLUXDB_DB=home_assistant
+    ports:
+      - "8086:8086"
+      - "8083:8083"
+    networks:
+      hass_net:
+        aliases:
+          - influxdb
+  grafana:
+    container_name: grafana
+    restart: unless-stopped
+    image: grafana/grafana
+    depends_on:
+      - "influxdb"
+    volumes:
+      - "grafana_data:/var/lib/grafana"
+    ports:
+      - "3000:3000"
+    networks:
+      hass_net:
+        aliases:
+          - grafana
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+volumes:
+  postgresql_data:
+  homeassistant_data:
+  tasmota_data:
+  influxdb_data:
+  grafana_data:
+networks:
+  hass_net:
