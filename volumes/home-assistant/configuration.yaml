@@ -103,5 +103,5 @@ mqtt:
   broker: mqtt
   client_id: home-assistant
   protocol: 3.1
-  username: "mqttuser"
-  password: "mqttpassword"
+  username: "user"
+  password: "password"
